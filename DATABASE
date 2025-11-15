@@ -1,0 +1,318 @@
+-- BHIGOTILYO Admin Database Schema
+-- Create Database
+CREATE DATABASE IF NOT EXISTS bhigotilyo_db;
+USE bhigotilyo_db;
+
+-- ============================================
+-- 1. USERS/ADMIN TABLE
+-- ============================================
+CREATE TABLE IF NOT EXISTS admins (
+    admin_id INT PRIMARY KEY AUTO_INCREMENT,
+    username VARCHAR(50) UNIQUE NOT NULL,
+    email VARCHAR(100) UNIQUE NOT NULL,
+    password_hash VARCHAR(255) NOT NULL,
+    full_name VARCHAR(100),
+    role ENUM('super_admin', 'admin', 'manager') DEFAULT 'admin',
+    is_active BOOLEAN DEFAULT TRUE,
+    last_login DATETIME,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+-- ============================================
+-- 2. STAFF/MEMBERS TABLE
+-- ============================================
+CREATE TABLE IF NOT EXISTS staff_members (
+    staff_id INT PRIMARY KEY AUTO_INCREMENT,
+    first_name VARCHAR(50) NOT NULL,
+    last_name VARCHAR(50) NOT NULL,
+    email VARCHAR(100) UNIQUE,
+    phone VARCHAR(20),
+    position VARCHAR(50),
+    specialization VARCHAR(100),
+    hire_date DATE,
+    status ENUM('active', 'inactive', 'on_leave') DEFAULT 'active',
+    hourly_rate DECIMAL(10, 2),
+    profile_image VARCHAR(255),
+    address TEXT,
+    emergency_contact VARCHAR(100),
+    emergency_phone VARCHAR(20),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+-- ============================================
+-- 3. CUSTOMERS TABLE
+-- ============================================
+CREATE TABLE IF NOT EXISTS customers (
+    customer_id INT PRIMARY KEY AUTO_INCREMENT,
+    first_name VARCHAR(50) NOT NULL,
+    last_name VARCHAR(50) NOT NULL,
+    email VARCHAR(100) UNIQUE,
+    phone VARCHAR(20) NOT NULL,
+    date_of_birth DATE,
+    gender ENUM('male', 'female', 'other'),
+    address TEXT,
+    city VARCHAR(50),
+    postal_code VARCHAR(10),
+    profile_image VARCHAR(255),
+    membership_status ENUM('regular', 'vip', 'inactive') DEFAULT 'regular',
+    registration_date DATE DEFAULT (CURRENT_DATE),
+    last_visit_date DATE,
+    total_visits INT DEFAULT 0,
+    total_spent DECIMAL(10, 2) DEFAULT 0.00,
+    notes TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+-- ============================================
+-- 4. SERVICES TABLE
+-- ============================================
+CREATE TABLE IF NOT EXISTS services (
+    service_id INT PRIMARY KEY AUTO_INCREMENT,
+    service_name VARCHAR(100) NOT NULL,
+    description TEXT,
+    category VARCHAR(50),
+    duration_minutes INT NOT NULL,
+    base_price DECIMAL(10, 2) NOT NULL,
+    is_active BOOLEAN DEFAULT TRUE,
+    image_url VARCHAR(255),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+-- ============================================
+-- 5. BOOKINGS/APPOINTMENTS TABLE
+-- ============================================
+CREATE TABLE IF NOT EXISTS bookings (
+    booking_id INT PRIMARY KEY AUTO_INCREMENT,
+    customer_id INT NOT NULL,
+    staff_id INT,
+    service_id INT NOT NULL,
+    booking_date DATE NOT NULL,
+    booking_time TIME NOT NULL,
+    end_time TIME,
+    duration_minutes INT,
+    status ENUM('pending', 'confirmed', 'in_progress', 'completed', 'cancelled', 'no_show') DEFAULT 'pending',
+    total_amount DECIMAL(10, 2),
+    deposit_amount DECIMAL(10, 2) DEFAULT 0.00,
+    payment_status ENUM('unpaid', 'partial', 'paid', 'refunded') DEFAULT 'unpaid',
+    notes TEXT,
+    cancellation_reason TEXT,
+    cancelled_at DATETIME,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (customer_id) REFERENCES customers(customer_id) ON DELETE CASCADE,
+    FOREIGN KEY (staff_id) REFERENCES staff_members(staff_id) ON DELETE SET NULL,
+    FOREIGN KEY (service_id) REFERENCES services(service_id) ON DELETE CASCADE
+);
+
+-- ============================================
+-- 6. PAYMENTS TABLE
+-- ============================================
+CREATE TABLE IF NOT EXISTS payments (
+    payment_id INT PRIMARY KEY AUTO_INCREMENT,
+    booking_id INT NOT NULL,
+    customer_id INT NOT NULL,
+    amount DECIMAL(10, 2) NOT NULL,
+    payment_method ENUM('cash', 'credit_card', 'debit_card', 'gcash', 'paymaya', 'bank_transfer') NOT NULL,
+    payment_date DATETIME DEFAULT CURRENT_TIMESTAMP,
+    transaction_reference VARCHAR(100),
+    status ENUM('pending', 'completed', 'failed', 'refunded') DEFAULT 'completed',
+    notes TEXT,
+    processed_by INT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (booking_id) REFERENCES bookings(booking_id) ON DELETE CASCADE,
+    FOREIGN KEY (customer_id) REFERENCES customers(customer_id) ON DELETE CASCADE,
+    FOREIGN KEY (processed_by) REFERENCES admins(admin_id) ON DELETE SET NULL
+);
+
+-- ============================================
+-- 7. PROMOTIONS TABLE
+-- ============================================
+CREATE TABLE IF NOT EXISTS promotions (
+    promotion_id INT PRIMARY KEY AUTO_INCREMENT,
+    promotion_name VARCHAR(100) NOT NULL,
+    description TEXT,
+    discount_type ENUM('percentage', 'fixed_amount') NOT NULL,
+    discount_value DECIMAL(10, 2) NOT NULL,
+    start_date DATE NOT NULL,
+    end_date DATE NOT NULL,
+    promo_code VARCHAR(50) UNIQUE,
+    min_purchase_amount DECIMAL(10, 2) DEFAULT 0.00,
+    max_discount_amount DECIMAL(10, 2),
+    usage_limit INT,
+    usage_count INT DEFAULT 0,
+    is_active BOOLEAN DEFAULT TRUE,
+    applicable_services TEXT, -- JSON array of service_ids
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+-- ============================================
+-- 8. PROMOTION USAGE TABLE
+-- ============================================
+CREATE TABLE IF NOT EXISTS promotion_usage (
+    usage_id INT PRIMARY KEY AUTO_INCREMENT,
+    promotion_id INT NOT NULL,
+    customer_id INT NOT NULL,
+    booking_id INT NOT NULL,
+    discount_amount DECIMAL(10, 2) NOT NULL,
+    used_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (promotion_id) REFERENCES promotions(promotion_id) ON DELETE CASCADE,
+    FOREIGN KEY (customer_id) REFERENCES customers(customer_id) ON DELETE CASCADE,
+    FOREIGN KEY (booking_id) REFERENCES bookings(booking_id) ON DELETE CASCADE
+);
+
+-- ============================================
+-- 9. STAFF SCHEDULE TABLE
+-- ============================================
+CREATE TABLE IF NOT EXISTS staff_schedules (
+    schedule_id INT PRIMARY KEY AUTO_INCREMENT,
+    staff_id INT NOT NULL,
+    day_of_week ENUM('Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday') NOT NULL,
+    start_time TIME NOT NULL,
+    end_time TIME NOT NULL,
+    is_available BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (staff_id) REFERENCES staff_members(staff_id) ON DELETE CASCADE
+);
+
+-- ============================================
+-- 10. REVIEWS/RATINGS TABLE
+-- ============================================
+CREATE TABLE IF NOT EXISTS reviews (
+    review_id INT PRIMARY KEY AUTO_INCREMENT,
+    booking_id INT NOT NULL,
+    customer_id INT NOT NULL,
+    staff_id INT,
+    rating INT CHECK (rating BETWEEN 1 AND 5),
+    comment TEXT,
+    is_approved BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (booking_id) REFERENCES bookings(booking_id) ON DELETE CASCADE,
+    FOREIGN KEY (customer_id) REFERENCES customers(customer_id) ON DELETE CASCADE,
+    FOREIGN KEY (staff_id) REFERENCES staff_members(staff_id) ON DELETE SET NULL
+);
+
+-- ============================================
+-- 11. SYSTEM SETTINGS TABLE
+-- ============================================
+CREATE TABLE IF NOT EXISTS system_settings (
+    setting_id INT PRIMARY KEY AUTO_INCREMENT,
+    setting_key VARCHAR(50) UNIQUE NOT NULL,
+    setting_value TEXT,
+    setting_type VARCHAR(20) DEFAULT 'string',
+    description TEXT,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+-- ============================================
+-- 12. ACTIVITY LOGS TABLE
+-- ============================================
+CREATE TABLE IF NOT EXISTS activity_logs (
+    log_id INT PRIMARY KEY AUTO_INCREMENT,
+    admin_id INT,
+    action_type VARCHAR(50) NOT NULL,
+    table_name VARCHAR(50),
+    record_id INT,
+    description TEXT,
+    ip_address VARCHAR(45),
+    user_agent VARCHAR(255),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (admin_id) REFERENCES admins(admin_id) ON DELETE SET NULL
+);
+
+-- ============================================
+-- INSERT SAMPLE DATA
+-- ============================================
+
+-- Sample Admin User (password: admin123 - hashed)
+INSERT INTO admins (username, email, password_hash, full_name, role) VALUES
+('admin', 'admin@bhigotilyo.com', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'Admin User', 'super_admin');
+
+-- Sample Services
+INSERT INTO services (service_name, description, category, duration_minutes, base_price) VALUES
+('Haircut', 'Professional haircut service', 'Hair', 30, 250.00),
+('Hair Color', 'Full hair coloring service', 'Hair', 90, 1500.00),
+('Manicure', 'Basic manicure service', 'Nails', 45, 300.00),
+('Pedicure', 'Basic pedicure service', 'Nails', 60, 400.00),
+('Facial Treatment', 'Deep cleansing facial', 'Skincare', 60, 800.00),
+('Massage', 'Relaxing full body massage', 'Wellness', 90, 1200.00);
+
+-- Sample Staff Members
+INSERT INTO staff_members (first_name, last_name, email, phone, position, status, hourly_rate) VALUES
+('Maria', 'Santos', 'maria.santos@bhigotilyo.com', '09171234567', 'Senior Stylist', 'active', 200.00),
+('Juan', 'Dela Cruz', 'juan.delacruz@bhigotilyo.com', '09181234567', 'Nail Technician', 'active', 150.00),
+('Anna', 'Reyes', 'anna.reyes@bhigotilyo.com', '09191234567', 'Beautician', 'active', 180.00);
+
+-- Sample System Settings
+INSERT INTO system_settings (setting_key, setting_value, setting_type, description) VALUES
+('business_name', 'BHIGOTILYO', 'string', 'Business name'),
+('business_hours', '9:00 AM - 8:00 PM', 'string', 'Operating hours'),
+('booking_buffer_minutes', '15', 'number', 'Buffer time between bookings'),
+('cancellation_hours', '24', 'number', 'Hours before booking for free cancellation'),
+('currency', 'PHP', 'string', 'Currency code');
+
+-- ============================================
+-- USEFUL VIEWS
+-- ============================================
+
+-- View for today's bookings
+CREATE OR REPLACE VIEW todays_bookings AS
+SELECT 
+    b.booking_id,
+    b.booking_date,
+    b.booking_time,
+    b.status,
+    CONCAT(c.first_name, ' ', c.last_name) AS customer_name,
+    c.phone AS customer_phone,
+    CONCAT(s.first_name, ' ', s.last_name) AS staff_name,
+    srv.service_name,
+    b.total_amount
+FROM bookings b
+JOIN customers c ON b.customer_id = c.customer_id
+LEFT JOIN staff_members s ON b.staff_id = s.staff_id
+JOIN services srv ON b.service_id = srv.service_id
+WHERE b.booking_date = CURDATE()
+ORDER BY b.booking_time;
+
+-- View for revenue summary
+CREATE OR REPLACE VIEW revenue_summary AS
+SELECT 
+    DATE(p.payment_date) AS payment_date,
+    COUNT(p.payment_id) AS total_transactions,
+    SUM(p.amount) AS total_revenue,
+    AVG(p.amount) AS average_transaction
+FROM payments p
+WHERE p.status = 'completed'
+GROUP BY DATE(p.payment_date)
+ORDER BY payment_date DESC;
+
+-- View for customer summary
+CREATE OR REPLACE VIEW customer_summary AS
+SELECT 
+    c.customer_id,
+    CONCAT(c.first_name, ' ', c.last_name) AS customer_name,
+    c.email,
+    c.phone,
+    c.total_visits,
+    c.total_spent,
+    c.last_visit_date,
+    COUNT(b.booking_id) AS total_bookings
+FROM customers c
+LEFT JOIN bookings b ON c.customer_id = b.customer_id
+GROUP BY c.customer_id
+ORDER BY c.total_spent DESC;
+
+-- ============================================
+-- INDEXES FOR PERFORMANCE
+-- ============================================
+CREATE INDEX idx_bookings_date ON bookings(booking_date);
+CREATE INDEX idx_bookings_status ON bookings(status);
+CREATE INDEX idx_bookings_customer ON bookings(customer_id);
+CREATE INDEX idx_payments_date ON payments(payment_date);
+CREATE INDEX idx_customers_phone ON customers(phone);
+CREATE INDEX idx_staff_status ON staff_members(status);
