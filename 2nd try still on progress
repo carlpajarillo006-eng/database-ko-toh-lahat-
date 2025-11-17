@@ -1,0 +1,607 @@
+-- BHIGOTILYO BARBERSHOP Database Schema
+-- Updated based on actual UI requirements
+-- Create Database
+CREATE DATABASE IF NOT EXISTS bhigotilyo_db;
+USE bhigotilyo_db;
+
+-- ============================================
+-- 1. USERS TABLE (For Registration/Login)
+-- ============================================
+CREATE TABLE IF NOT EXISTS users (
+    user_id INT PRIMARY KEY AUTO_INCREMENT,
+    email VARCHAR(100) UNIQUE NOT NULL,
+    username VARCHAR(50) UNIQUE NOT NULL,
+    password_hash VARCHAR(255) NOT NULL,
+    user_type ENUM('admin', 'customer', 'staff') DEFAULT 'customer',
+    is_active BOOLEAN DEFAULT TRUE,
+    email_verified BOOLEAN DEFAULT FALSE,
+    verification_token VARCHAR(100),
+    reset_token VARCHAR(100),
+    reset_token_expiry DATETIME,
+    last_login DATETIME,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX idx_email (email),
+    INDEX idx_username (username)
+);
+
+-- ============================================
+-- 2. ADMIN PROFILES TABLE (Dashboard Access)
+-- ============================================
+CREATE TABLE IF NOT EXISTS admin_profiles (
+    admin_profile_id INT PRIMARY KEY AUTO_INCREMENT,
+    user_id INT UNIQUE NOT NULL,
+    full_name VARCHAR(100),
+    phone VARCHAR(20),
+    address TEXT,
+    profile_image VARCHAR(255),
+    role ENUM('super_admin', 'admin', 'manager') DEFAULT 'admin',
+    permissions TEXT, -- JSON: {"manage_members": true, "view_reports": true}
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
+);
+
+-- ============================================
+-- 3. MANAGE MEMBERS TABLE (Staff Management)
+-- ============================================
+CREATE TABLE IF NOT EXISTS staff_members (
+    staff_id INT PRIMARY KEY AUTO_INCREMENT,
+    user_id INT UNIQUE, -- Link to users table if staff can login
+    full_name VARCHAR(100) NOT NULL,
+    position VARCHAR(50) NOT NULL, -- Barber, Senior Stylist, Manager, etc.
+    phone VARCHAR(20) NOT NULL,
+    address TEXT NOT NULL,
+    email VARCHAR(100),
+    date_of_birth DATE,
+    hire_date DATE,
+    status ENUM('active', 'inactive', 'on_leave') DEFAULT 'active',
+    hourly_rate DECIMAL(10, 2),
+    commission_rate DECIMAL(5, 2) DEFAULT 0.00, -- Percentage
+    profile_image VARCHAR(255),
+    emergency_contact VARCHAR(100),
+    emergency_phone VARCHAR(20),
+    notes TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE SET NULL,
+    INDEX idx_status (status)
+);
+
+-- ============================================
+-- 4. CUSTOMERS TABLE (Customer Accounts)
+-- ============================================
+CREATE TABLE IF NOT EXISTS customers (
+    customer_id INT PRIMARY KEY AUTO_INCREMENT,
+    user_id INT UNIQUE NOT NULL, -- Must link to users table
+    full_name VARCHAR(100) NOT NULL,
+    phone VARCHAR(20) NOT NULL,
+    email VARCHAR(100),
+    date_of_birth DATE,
+    gender ENUM('male', 'female', 'other'),
+    address TEXT,
+    profile_image VARCHAR(255),
+    membership_tier ENUM('regular', 'silver', 'gold', 'vip') DEFAULT 'regular',
+    points INT DEFAULT 0,
+    total_visits INT DEFAULT 0,
+    total_spent DECIMAL(10, 2) DEFAULT 0.00,
+    last_visit_date DATE,
+    preferred_staff_id INT,
+    notes TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE,
+    FOREIGN KEY (preferred_staff_id) REFERENCES staff_members(staff_id) ON DELETE SET NULL,
+    INDEX idx_phone (phone)
+);
+
+-- ============================================
+-- 5. SERVICES TABLE
+-- ============================================
+CREATE TABLE IF NOT EXISTS services (
+    service_id INT PRIMARY KEY AUTO_INCREMENT,
+    service_name VARCHAR(100) NOT NULL,
+    description TEXT,
+    category VARCHAR(50), -- Haircut, Shave, Grooming, etc.
+    duration_minutes INT NOT NULL,
+    base_price DECIMAL(10, 2) NOT NULL,
+    is_active BOOLEAN DEFAULT TRUE,
+    image_url VARCHAR(255),
+    display_order INT DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+-- ============================================
+-- 6. BOOKINGS/APPOINTMENTS TABLE
+-- ============================================
+CREATE TABLE IF NOT EXISTS bookings (
+    booking_id INT PRIMARY KEY AUTO_INCREMENT,
+    customer_id INT NOT NULL,
+    staff_id INT,
+    service_id INT NOT NULL,
+    booking_date DATE NOT NULL,
+    booking_time TIME NOT NULL,
+    end_time TIME,
+    duration_minutes INT,
+    status ENUM('pending', 'confirmed', 'in_progress', 'completed', 'cancelled', 'no_show') DEFAULT 'pending',
+    total_amount DECIMAL(10, 2) NOT NULL,
+    discount_amount DECIMAL(10, 2) DEFAULT 0.00,
+    final_amount DECIMAL(10, 2) NOT NULL,
+    payment_status ENUM('unpaid', 'partial', 'paid') DEFAULT 'unpaid',
+    notes TEXT,
+    customer_notes TEXT,
+    cancellation_reason TEXT,
+    cancelled_at DATETIME,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (customer_id) REFERENCES customers(customer_id) ON DELETE CASCADE,
+    FOREIGN KEY (staff_id) REFERENCES staff_members(staff_id) ON DELETE SET NULL,
+    FOREIGN KEY (service_id) REFERENCES services(service_id) ON DELETE CASCADE,
+    INDEX idx_booking_date (booking_date),
+    INDEX idx_status (status)
+);
+
+-- ============================================
+-- 7. PAYMENT REPORTS TABLE (Daily Transactions)
+-- ============================================
+CREATE TABLE IF NOT EXISTS payment_reports (
+    payment_id INT PRIMARY KEY AUTO_INCREMENT,
+    booking_id INT NOT NULL,
+    customer_id INT NOT NULL,
+    staff_id INT,
+    amount DECIMAL(10, 2) NOT NULL,
+    payment_method ENUM('cash', 'credit_card', 'debit_card', 'gcash', 'paymaya', 'bank_transfer', 'other') NOT NULL,
+    payment_date DATE NOT NULL,
+    payment_time TIME NOT NULL,
+    transaction_reference VARCHAR(100),
+    status ENUM('completed', 'pending', 'failed') DEFAULT 'completed',
+    tips_amount DECIMAL(10, 2) DEFAULT 0.00,
+    processed_by INT, -- admin who processed
+    notes TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (booking_id) REFERENCES bookings(booking_id) ON DELETE CASCADE,
+    FOREIGN KEY (customer_id) REFERENCES customers(customer_id) ON DELETE CASCADE,
+    FOREIGN KEY (staff_id) REFERENCES staff_members(staff_id) ON DELETE SET NULL,
+    FOREIGN KEY (processed_by) REFERENCES users(user_id) ON DELETE SET NULL,
+    INDEX idx_payment_date (payment_date),
+    INDEX idx_status (status)
+);
+
+-- ============================================
+-- 8. PAYMENT ARCHIVE TABLE (Yesterday's Logs)
+-- ============================================
+CREATE TABLE IF NOT EXISTS payment_archive (
+    archive_id INT PRIMARY KEY AUTO_INCREMENT,
+    payment_id INT NOT NULL,
+    booking_id INT NOT NULL,
+    customer_id INT NOT NULL,
+    staff_id INT,
+    amount DECIMAL(10, 2) NOT NULL,
+    payment_method VARCHAR(50) NOT NULL,
+    payment_date DATE NOT NULL,
+    payment_time TIME NOT NULL,
+    transaction_reference VARCHAR(100),
+    status VARCHAR(20),
+    tips_amount DECIMAL(10, 2) DEFAULT 0.00,
+    processed_by INT,
+    notes TEXT,
+    archived_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_payment_date (payment_date)
+);
+
+-- ============================================
+-- 9. PROMOTIONS TABLE
+-- ============================================
+CREATE TABLE IF NOT EXISTS promotions (
+    promotion_id INT PRIMARY KEY AUTO_INCREMENT,
+    promotion_name VARCHAR(100) NOT NULL,
+    description TEXT,
+    promotion_type ENUM('discount', 'free_service', 'points_multiplier', 'seasonal') NOT NULL,
+    discount_type ENUM('percentage', 'fixed_amount'),
+    discount_value DECIMAL(10, 2),
+    promo_code VARCHAR(50) UNIQUE,
+    start_date DATE NOT NULL,
+    end_date DATE NOT NULL,
+    min_purchase_amount DECIMAL(10, 2) DEFAULT 0.00,
+    max_discount_amount DECIMAL(10, 2),
+    usage_limit INT,
+    usage_count INT DEFAULT 0,
+    is_active BOOLEAN DEFAULT TRUE,
+    applicable_services TEXT, -- JSON array of service_ids
+    applicable_days TEXT, -- JSON: ["Monday", "Tuesday"]
+    target_membership TEXT, -- JSON: ["silver", "gold", "vip"]
+    image_url VARCHAR(255),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+-- ============================================
+-- 10. PROMOTION USAGE TABLE
+-- ============================================
+CREATE TABLE IF NOT EXISTS promotion_usage (
+    usage_id INT PRIMARY KEY AUTO_INCREMENT,
+    promotion_id INT NOT NULL,
+    customer_id INT NOT NULL,
+    booking_id INT NOT NULL,
+    discount_amount DECIMAL(10, 2) NOT NULL,
+    used_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (promotion_id) REFERENCES promotions(promotion_id) ON DELETE CASCADE,
+    FOREIGN KEY (customer_id) REFERENCES customers(customer_id) ON DELETE CASCADE,
+    FOREIGN KEY (booking_id) REFERENCES bookings(booking_id) ON DELETE CASCADE
+);
+
+-- ============================================
+-- 11. SYSTEM SETTINGS TABLE
+-- ============================================
+CREATE TABLE IF NOT EXISTS system_settings (
+    setting_id INT PRIMARY KEY AUTO_INCREMENT,
+    setting_category VARCHAR(50) NOT NULL, -- general, business, notifications, etc.
+    setting_key VARCHAR(50) NOT NULL,
+    setting_value TEXT,
+    setting_type VARCHAR(20) DEFAULT 'string', -- string, number, boolean, json
+    description TEXT,
+    is_public BOOLEAN DEFAULT FALSE, -- Can customers see this?
+    updated_by INT,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (updated_by) REFERENCES users(user_id) ON DELETE SET NULL,
+    UNIQUE KEY unique_setting (setting_category, setting_key)
+);
+
+-- ============================================
+-- 12. DASHBOARD STATISTICS TABLE (For Dashboard Overview)
+-- ============================================
+CREATE TABLE IF NOT EXISTS dashboard_stats (
+    stat_id INT PRIMARY KEY AUTO_INCREMENT,
+    stat_date DATE NOT NULL UNIQUE,
+    total_bookings_today INT DEFAULT 0,
+    total_bookings_week INT DEFAULT 0,
+    total_bookings_month INT DEFAULT 0,
+    available_staff INT DEFAULT 0,
+    total_staff INT DEFAULT 0,
+    revenue_today DECIMAL(10, 2) DEFAULT 0.00,
+    revenue_week DECIMAL(10, 2) DEFAULT 0.00,
+    revenue_month DECIMAL(10, 2) DEFAULT 0.00,
+    revenue_all_time DECIMAL(10, 2) DEFAULT 0.00,
+    new_customers_today INT DEFAULT 0,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+-- ============================================
+-- 13. STAFF SCHEDULE TABLE
+-- ============================================
+CREATE TABLE IF NOT EXISTS staff_schedules (
+    schedule_id INT PRIMARY KEY AUTO_INCREMENT,
+    staff_id INT NOT NULL,
+    day_of_week ENUM('Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday') NOT NULL,
+    start_time TIME NOT NULL,
+    end_time TIME NOT NULL,
+    is_available BOOLEAN DEFAULT TRUE,
+    break_start_time TIME,
+    break_end_time TIME,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (staff_id) REFERENCES staff_members(staff_id) ON DELETE CASCADE,
+    UNIQUE KEY unique_staff_day (staff_id, day_of_week)
+);
+
+-- ============================================
+-- 14. ACTIVITY LOGS TABLE
+-- ============================================
+CREATE TABLE IF NOT EXISTS activity_logs (
+    log_id INT PRIMARY KEY AUTO_INCREMENT,
+    user_id INT,
+    user_type VARCHAR(20),
+    action_type VARCHAR(50) NOT NULL, -- login, logout, create, update, delete
+    table_name VARCHAR(50),
+    record_id INT,
+    description TEXT,
+    ip_address VARCHAR(45),
+    user_agent VARCHAR(255),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE SET NULL,
+    INDEX idx_action (action_type),
+    INDEX idx_created (created_at)
+);
+
+-- ============================================
+-- 15. BUSINESS HOURS TABLE (For Settings)
+-- ============================================
+CREATE TABLE IF NOT EXISTS business_hours (
+    hours_id INT PRIMARY KEY AUTO_INCREMENT,
+    day_of_week ENUM('Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday') NOT NULL UNIQUE,
+    is_open BOOLEAN DEFAULT TRUE,
+    opening_time TIME,
+    closing_time TIME,
+    break_start_time TIME,
+    break_end_time TIME,
+    notes TEXT,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+-- ============================================
+-- INSERT SAMPLE DATA
+-- ============================================
+
+-- Sample User Accounts (password: password123 - use proper hashing in production!)
+INSERT INTO users (email, username, password_hash, user_type) VALUES
+('admin@bhigotilyo.com', 'admin', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'admin'),
+('john.doe@email.com', 'johndoe', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'customer'),
+('maria.santos@email.com', 'mariasantos', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'staff');
+
+-- Admin Profile
+INSERT INTO admin_profiles (user_id, full_name, phone, address, role) VALUES
+(1, 'Admin User', '09171234567', 'Mandaluyong City, Metro Manila', 'super_admin');
+
+-- Sample Services
+INSERT INTO services (service_name, description, category, duration_minutes, base_price, display_order) VALUES
+('Classic Haircut', 'Traditional haircut with wash', 'Haircut', 30, 250.00, 1),
+('Premium Haircut', 'Haircut with styling and wash', 'Haircut', 45, 400.00, 2),
+('Beard Trim', 'Professional beard trimming', 'Grooming', 15, 150.00, 3),
+('Hot Shave', 'Classic hot towel shave', 'Shave', 30, 300.00, 4),
+('Hair Color', 'Full hair coloring service', 'Color', 90, 1500.00, 5),
+('Kids Haircut', 'Haircut for children under 12', 'Haircut', 20, 180.00, 6);
+
+-- Sample Staff Members
+INSERT INTO staff_members (full_name, position, phone, address, email, status, hourly_rate) VALUES
+('Juan Dela Cruz', 'Senior Barber', '09181234567', '123 Main St, Mandaluyong', 'juan@bhigotilyo.com', 'active', 200.00),
+('Maria Santos', 'Master Barber', '09191234567', '456 Oak Ave, Makati', 'maria@bhigotilyo.com', 'active', 250.00),
+('Pedro Reyes', 'Barber', '09201234567', '789 Pine Rd, Pasig', 'pedro@bhigotilyo.com', 'active', 150.00);
+
+-- Update staff_members to link with users
+UPDATE staff_members SET user_id = 3 WHERE staff_id = 2;
+
+-- Sample Customer
+INSERT INTO customers (user_id, full_name, phone, email, membership_tier) VALUES
+(2, 'John Doe', '09171111111', 'john.doe@email.com', 'regular');
+
+-- System Settings
+INSERT INTO system_settings (setting_category, setting_key, setting_value, setting_type, description, is_public) VALUES
+('general', 'business_name', 'BHIGOTILYO''S BARBERSHOP', 'string', 'Business name', TRUE),
+('general', 'business_tagline', 'Where style meets precision since 2023', 'string', 'Business tagline', TRUE),
+('business', 'phone', '09171234567', 'string', 'Contact phone number', TRUE),
+('business', 'email', 'info@bhigotilyo.com', 'string', 'Contact email', TRUE),
+('business', 'address', 'Mandaluyong City, Metro Manila, PH', 'string', 'Business address', TRUE),
+('booking', 'buffer_minutes', '15', 'number', 'Buffer time between bookings', FALSE),
+('booking', 'advance_booking_days', '30', 'number', 'How many days ahead customers can book', FALSE),
+('booking', 'cancellation_hours', '24', 'number', 'Hours before booking for free cancellation', FALSE),
+('payment', 'currency', 'PHP', 'string', 'Currency code', TRUE),
+('payment', 'tax_rate', '0', 'number', 'Tax rate percentage', FALSE),
+('notifications', 'booking_confirmation', 'true', 'boolean', 'Send booking confirmation emails', FALSE),
+('notifications', 'booking_reminder', 'true', 'boolean', 'Send booking reminder emails', FALSE);
+
+-- Business Hours
+INSERT INTO business_hours (day_of_week, is_open, opening_time, closing_time) VALUES
+('Monday', TRUE, '09:00:00', '20:00:00'),
+('Tuesday', TRUE, '09:00:00', '20:00:00'),
+('Wednesday', TRUE, '09:00:00', '20:00:00'),
+('Thursday', TRUE, '09:00:00', '20:00:00'),
+('Friday', TRUE, '09:00:00', '20:00:00'),
+('Saturday', TRUE, '09:00:00', '20:00:00'),
+('Sunday', TRUE, '10:00:00', '18:00:00');
+
+-- Initialize Dashboard Stats for today
+INSERT INTO dashboard_stats (stat_date, available_staff, total_staff) VALUES
+(CURDATE(), 3, 3);
+
+-- ============================================
+-- USEFUL VIEWS
+-- ============================================
+
+-- Today's Bookings with Full Details
+CREATE OR REPLACE VIEW v_todays_bookings AS
+SELECT 
+    b.booking_id,
+    b.booking_date,
+    b.booking_time,
+    b.end_time,
+    b.status,
+    b.final_amount,
+    b.payment_status,
+    CONCAT(c.full_name) AS customer_name,
+    c.phone AS customer_phone,
+    c.email AS customer_email,
+    CONCAT(s.full_name) AS staff_name,
+    s.position AS staff_position,
+    srv.service_name,
+    srv.duration_minutes,
+    b.notes
+FROM bookings b
+JOIN customers c ON b.customer_id = c.customer_id
+LEFT JOIN staff_members s ON b.staff_id = s.staff_id
+JOIN services srv ON b.service_id = srv.service_id
+WHERE b.booking_date = CURDATE()
+ORDER BY b.booking_time;
+
+-- Today's Payment Reports
+CREATE OR REPLACE VIEW v_todays_payments AS
+SELECT 
+    p.payment_id,
+    p.payment_date,
+    p.payment_time,
+    p.amount,
+    p.tips_amount,
+    (p.amount + p.tips_amount) AS total_amount,
+    p.payment_method,
+    p.status,
+    c.full_name AS customer_name,
+    s.full_name AS staff_name,
+    srv.service_name
+FROM payment_reports p
+JOIN customers c ON p.customer_id = c.customer_id
+LEFT JOIN staff_members s ON p.staff_id = s.staff_id
+JOIN bookings b ON p.booking_id = b.booking_id
+JOIN services srv ON b.service_id = srv.service_id
+WHERE p.payment_date = CURDATE()
+ORDER BY p.payment_time DESC;
+
+-- Customer Summary with Full Details
+CREATE OR REPLACE VIEW v_customer_summary AS
+SELECT 
+    c.customer_id,
+    c.full_name,
+    c.email,
+    c.phone,
+    c.membership_tier,
+    c.points,
+    c.total_visits,
+    c.total_spent,
+    c.last_visit_date,
+    u.last_login,
+    u.created_at AS registration_date,
+    COUNT(b.booking_id) AS total_bookings,
+    COALESCE(ps.full_name, 'No Preference') AS preferred_staff
+FROM customers c
+JOIN users u ON c.user_id = u.user_id
+LEFT JOIN bookings b ON c.customer_id = b.customer_id
+LEFT JOIN staff_members ps ON c.preferred_staff_id = ps.staff_id
+GROUP BY c.customer_id
+ORDER BY c.total_spent DESC;
+
+-- Available Staff Today
+CREATE OR REPLACE VIEW v_available_staff AS
+SELECT 
+    s.staff_id,
+    s.full_name,
+    s.position,
+    s.phone,
+    s.status,
+    sch.start_time,
+    sch.end_time,
+    COUNT(b.booking_id) AS bookings_today
+FROM staff_members s
+LEFT JOIN staff_schedules sch ON s.staff_id = sch.staff_id AND sch.day_of_week = DAYNAME(CURDATE())
+LEFT JOIN bookings b ON s.staff_id = b.staff_id AND b.booking_date = CURDATE() AND b.status NOT IN ('cancelled', 'no_show')
+WHERE s.status = 'active'
+GROUP BY s.staff_id
+ORDER BY s.full_name;
+
+-- Weekly Bookings Trend
+CREATE OR REPLACE VIEW v_weekly_bookings_trend AS
+SELECT 
+    DATE(b.booking_date) AS booking_date,
+    DAYNAME(b.booking_date) AS day_name,
+    COUNT(b.booking_id) AS total_bookings,
+    SUM(CASE WHEN b.status = 'completed' THEN 1 ELSE 0 END) AS completed_bookings,
+    SUM(CASE WHEN b.status = 'cancelled' THEN 1 ELSE 0 END) AS cancelled_bookings,
+    SUM(b.final_amount) AS total_revenue
+FROM bookings b
+WHERE b.booking_date >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
+GROUP BY DATE(b.booking_date)
+ORDER BY booking_date;
+
+-- ============================================
+-- STORED PROCEDURE: Archive Yesterday's Payments
+-- ============================================
+DELIMITER $$
+
+CREATE PROCEDURE sp_archive_yesterday_payments()
+BEGIN
+    -- Insert yesterday's payments into archive
+    INSERT INTO payment_archive (
+        payment_id, booking_id, customer_id, staff_id, amount, 
+        payment_method, payment_date, payment_time, transaction_reference, 
+        status, tips_amount, processed_by, notes
+    )
+    SELECT 
+        payment_id, booking_id, customer_id, staff_id, amount, 
+        payment_method, payment_date, payment_time, transaction_reference, 
+        status, tips_amount, processed_by, notes
+    FROM payment_reports
+    WHERE payment_date < CURDATE();
+    
+    -- Delete yesterday's payments from active reports
+    DELETE FROM payment_reports 
+    WHERE payment_date < CURDATE();
+    
+    SELECT CONCAT('Archived ', ROW_COUNT(), ' payment records') AS result;
+END$$
+
+DELIMITER ;
+
+-- ============================================
+-- STORED PROCEDURE: Update Dashboard Stats
+-- ============================================
+DELIMITER $$
+
+CREATE PROCEDURE sp_update_dashboard_stats()
+BEGIN
+    DECLARE v_today DATE DEFAULT CURDATE();
+    
+    -- Insert or update today's stats
+    INSERT INTO dashboard_stats (
+        stat_date,
+        total_bookings_today,
+        total_bookings_week,
+        total_bookings_month,
+        available_staff,
+        total_staff,
+        revenue_today,
+        revenue_week,
+        revenue_month,
+        revenue_all_time,
+        new_customers_today
+    )
+    SELECT
+        v_today,
+        (SELECT COUNT(*) FROM bookings WHERE booking_date = v_today),
+        (SELECT COUNT(*) FROM bookings WHERE booking_date >= DATE_SUB(v_today, INTERVAL 7 DAY)),
+        (SELECT COUNT(*) FROM bookings WHERE MONTH(booking_date) = MONTH(v_today) AND YEAR(booking_date) = YEAR(v_today)),
+        (SELECT COUNT(*) FROM staff_members WHERE status = 'active'),
+        (SELECT COUNT(*) FROM staff_members),
+        (SELECT COALESCE(SUM(amount), 0) FROM payment_reports WHERE payment_date = v_today AND status = 'completed'),
+        (SELECT COALESCE(SUM(amount), 0) FROM payment_reports WHERE payment_date >= DATE_SUB(v_today, INTERVAL 7 DAY) AND status = 'completed'),
+        (SELECT COALESCE(SUM(amount), 0) FROM payment_reports WHERE MONTH(payment_date) = MONTH(v_today) AND YEAR(payment_date) = YEAR(v_today) AND status = 'completed'),
+        (SELECT COALESCE(SUM(amount), 0) FROM payment_archive WHERE status = 'completed') + 
+        (SELECT COALESCE(SUM(amount), 0) FROM payment_reports WHERE status = 'completed'),
+        (SELECT COUNT(*) FROM customers WHERE DATE(created_at) = v_today)
+    ON DUPLICATE KEY UPDATE
+        total_bookings_today = VALUES(total_bookings_today),
+        total_bookings_week = VALUES(total_bookings_week),
+        total_bookings_month = VALUES(total_bookings_month),
+        available_staff = VALUES(available_staff),
+        total_staff = VALUES(total_staff),
+        revenue_today = VALUES(revenue_today),
+        revenue_week = VALUES(revenue_week),
+        revenue_month = VALUES(revenue_month),
+        revenue_all_time = VALUES(revenue_all_time),
+        new_customers_today = VALUES(new_customers_today);
+END$$
+
+DELIMITER ;
+
+-- ============================================
+-- INDEXES FOR PERFORMANCE
+-- ============================================
+CREATE INDEX idx_users_type ON users(user_type);
+CREATE INDEX idx_bookings_date_status ON bookings(booking_date, status);
+CREATE INDEX idx_payments_date_status ON payment_reports(payment_date, status);
+CREATE INDEX idx_customers_membership ON customers(membership_tier);
+CREATE INDEX idx_staff_status ON staff_members(status);
+CREATE INDEX idx_promotions_active ON promotions(is_active, start_date, end_date);
+
+-- ============================================
+-- TRIGGER: Update Customer Stats After Booking Completion
+-- ============================================
+DELIMITER $$
+
+CREATE TRIGGER trg_update_customer_stats
+AFTER UPDATE ON bookings
+FOR EACH ROW
+BEGIN
+    IF NEW.status = 'completed' AND OLD.status != 'completed' THEN
+        UPDATE customers 
+        SET 
+            total_visits = total_visits + 1,
+            total_spent = total_spent + NEW.final_amount,
+            last_visit_date = NEW.booking_date
+        WHERE customer_id = NEW.customer_id;
+    END IF;
+END$$
+
+DELIMITER ;
+
+-- ============================================
+-- INITIAL SETUP COMPLETE MESSAGE
+-- ============================================
+SELECT 'Database setup complete! Run sp_update_dashboard_stats() to initialize dashboard.' AS message;
