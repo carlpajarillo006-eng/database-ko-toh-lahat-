@@ -1,0 +1,64 @@
+INSERT INTO services (service_name, description, price, duration_minutes, display_order) VALUES
+('Regular Haircut', 'Classic cut styled to perfection', 150.00, 30, 1),
+('Haircut + Beard Trim', 'Complete grooming package', 200.00, 45, 2),
+('Premium Cut & Style', 'Luxury treatment with styling', 250.00, 60, 3),
+('Kids Haircut', 'Special haircut for children', 120.00, 25, 4),
+('Hot Towel Shave', 'Traditional hot towel shave', 180.00, 30, 5),
+('Hair Coloring', 'Professional hair coloring service', 500.00, 90, 6);
+
+-- Insert Barbers
+INSERT INTO barbers (barber_name, specialization, phone, rating) VALUES
+('Tony Martinez', 'Fade Specialist & Modern Styles', '09171234567', 4.95),
+('Mike Santos', 'Classic Cuts & Gentleman Grooming', '09181234568', 4.88),
+('Rex Garcia', 'Beard Expert & Hair Coloring', '09191234569', 4.92),
+('Leo Cruz', 'Trendy Styles & Kids Specialist', '09201234570', 4.90);
+
+-- Insert Barber Schedules (Mon-Sat: 9AM-6PM)
+INSERT INTO barber_schedule (barber_id, day_of_week, start_time, end_time) VALUES
+-- Barber 1
+(1, 'Monday', '09:00:00', '18:00:00'),
+(1, 'Tuesday', '09:00:00', '18:00:00'),
+(1, 'Wednesday', '09:00:00', '18:00:00'),
+(1, 'Thursday', '09:00:00', '18:00:00'),
+(1, 'Friday', '09:00:00', '18:00:00'),
+(1, 'Saturday', '09:00:00', '17:00:00'),
+-- Barber 2
+(2, 'Monday', '09:00:00', '18:00:00'),
+(2, 'Tuesday', '09:00:00', '18:00:00'),
+(2, 'Wednesday', '09:00:00', '18:00:00'),
+(2, 'Thursday', '09:00:00', '18:00:00'),
+(2, 'Friday', '09:00:00', '18:00:00'),
+(2, 'Saturday', '09:00:00', '17:00:00'),
+-- Barber 3
+(3, 'Tuesday', '09:00:00', '18:00:00'),
+(3, 'Wednesday', '09:00:00', '18:00:00'),
+(3, 'Thursday', '09:00:00', '18:00:00'),
+(3, 'Friday', '09:00:00', '18:00:00'),
+(3, 'Saturday', '09:00:00', '17:00:00'),
+(3, 'Sunday', '10:00:00', '15:00:00'),
+-- Barber 4
+(4, 'Monday', '09:00:00', '18:00:00'),
+(4, 'Wednesday', '09:00:00', '18:00:00'),
+(4, 'Thursday', '09:00:00', '18:00:00'),
+(4, 'Friday', '09:00:00', '18:00:00'),
+(4, 'Saturday', '09:00:00', '17:00:00');
+
+-- Insert Sample Customers
+INSERT INTO customers (first_name, last_name, email, phone, total_visits) VALUES
+('Juan', 'Dela Cruz', 'juan.delacruz@email.com', '09171234567', 5),
+('Pedro', 'Santos', 'pedro.santos@email.com', '09181234568', 3),
+('Maria', 'Garcia', 'maria.garcia@email.com', '09191234569', 2),
+('Carlos', 'Reyes', 'carlos.reyes@email.com', '09201234570', 4);
+
+-- Insert Sample Appointments
+INSERT INTO appointments (customer_id, barber_id, service_id, appointment_date, appointment_time, status, payment_method, payment_status, amount) VALUES
+(1, 1, 1, '2025-11-19', '10:00:00', 'confirmed', 'cash', 'pending', 150.00),
+(2, 1, 2, '2025-11-19', '11:00:00', 'confirmed', 'e-wallet', 'pending', 200.00),
+(3, 2, 3, '2025-11-20', '14:00:00', 'pending', 'cash', 'pending', 250.00),
+(1, 2, 1, '2025-11-15', '09:00:00', 'completed', 'cash', 'paid', 150.00),
+(4, 3, 2, '2025-11-18', '15:00:00', 'completed', 'e-wallet', 'paid', 200.00);
+
+-- Insert Admin User (Username: admin, Password: admin123)
+INSERT INTO admin_users (username, password_hash, full_name, email, role) VALUES
+('admin', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'Admin User', 'admin@barbershop.com', 'admin'),
+('staff1', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'Staff Member', 'staff@barbershop.com', 'staff');
