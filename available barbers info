@@ -1,0 +1,43 @@
+-- Available Barbers
+CREATE OR REPLACE VIEW available_barbers AS
+SELECT 
+    b.barber_id,
+    b.barber_name,
+    b.specialization,
+    b.rating,
+    b.status
+FROM barbers b
+WHERE b.status = 'active';
+
+-- Today's Appointments
+CREATE OR REPLACE VIEW todays_appointments AS
+SELECT 
+    a.appointment_id,
+    a.appointment_time,
+    CONCAT(c.first_name, ' ', c.last_name) as customer_name,
+    c.phone as customer_phone,
+    b.barber_name,
+    s.service_name,
+    a.amount,
+    a.payment_method,
+    a.status
+FROM appointments a
+JOIN customers c ON a.customer_id = c.customer_id
+JOIN barbers b ON a.barber_id = b.barber_id
+JOIN services s ON a.service_id = s.service_id
+WHERE a.appointment_date = CURDATE()
+ORDER BY a.appointment_time;
+
+-- Barber Performance
+CREATE OR REPLACE VIEW barber_performance AS
+SELECT 
+    b.barber_id,
+    b.barber_name,
+    COUNT(a.appointment_id) as total_appointments,
+    COUNT(CASE WHEN a.status = 'completed' THEN 1 END) as completed_appointments,
+    SUM(CASE WHEN a.status = 'completed' THEN a.amount ELSE 0 END) as total_revenue,
+    AVG(CASE WHEN r.rating IS NOT NULL THEN r.rating END) as avg_rating
+FROM barbers b
+LEFT JOIN appointments a ON b.barber_id = a.barber_id
+LEFT JOIN reviews r ON b.barber_id = r.barber_id
+GROUP BY b.barber_id;
