@@ -1,0 +1,130 @@
+-- Step 1: Create and use database
+CREATE DATABASE IF NOT EXISTS barbershop_booking;
+USE barbershop_booking;
+
+-- ============================================
+-- TABLE STRUCTURES
+-- ============================================
+
+-- Barbers table
+CREATE TABLE barbers (
+    barber_id INT AUTO_INCREMENT PRIMARY KEY,
+    barber_name VARCHAR(100) NOT NULL,
+    specialization VARCHAR(255),
+    phone VARCHAR(20),
+    email VARCHAR(255),
+    photo_url VARCHAR(255),
+    status ENUM('active', 'inactive', 'on_leave') DEFAULT 'active',
+    rating DECIMAL(3, 2) DEFAULT 5.00,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_status (status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Services table
+CREATE TABLE services (
+    service_id INT AUTO_INCREMENT PRIMARY KEY,
+    service_name VARCHAR(100) NOT NULL,
+    description TEXT,
+    price DECIMAL(10, 2) NOT NULL,
+    duration_minutes INT NOT NULL DEFAULT 30,
+    status ENUM('active', 'inactive') DEFAULT 'active',
+    display_order INT DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_status (status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Customers table
+CREATE TABLE customers (
+    customer_id INT AUTO_INCREMENT PRIMARY KEY,
+    first_name VARCHAR(100) NOT NULL,
+    last_name VARCHAR(100) NOT NULL,
+    email VARCHAR(255),
+    phone VARCHAR(20) NOT NULL,
+    address TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    last_visit TIMESTAMP NULL,
+    total_visits INT DEFAULT 0,
+    INDEX idx_phone (phone),
+    INDEX idx_email (email)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Appointments/Bookings table
+CREATE TABLE appointments (
+    appointment_id INT AUTO_INCREMENT PRIMARY KEY,
+    customer_id INT NOT NULL,
+    barber_id INT NOT NULL,
+    service_id INT NOT NULL,
+    appointment_date DATE NOT NULL,
+    appointment_time TIME NOT NULL,
+    status ENUM('pending', 'confirmed', 'completed', 'cancelled', 'no_show') DEFAULT 'pending',
+    payment_method ENUM('cash', 'e-wallet', 'gcash', 'paymaya', 'card') NOT NULL,
+    payment_status ENUM('pending', 'paid', 'refunded') DEFAULT 'pending',
+    amount DECIMAL(10, 2) NOT NULL,
+    notes TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (customer_id) REFERENCES customers(customer_id) ON DELETE CASCADE,
+    FOREIGN KEY (barber_id) REFERENCES barbers(barber_id) ON DELETE RESTRICT,
+    FOREIGN KEY (service_id) REFERENCES services(service_id) ON DELETE RESTRICT,
+    INDEX idx_date (appointment_date),
+    INDEX idx_barber_date (barber_id, appointment_date),
+    INDEX idx_customer (customer_id),
+    INDEX idx_status (status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Barber schedule/availability
+CREATE TABLE barber_schedule (
+    schedule_id INT AUTO_INCREMENT PRIMARY KEY,
+    barber_id INT NOT NULL,
+    day_of_week ENUM('Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday') NOT NULL,
+    start_time TIME NOT NULL,
+    end_time TIME NOT NULL,
+    is_available BOOLEAN DEFAULT TRUE,
+    FOREIGN KEY (barber_id) REFERENCES barbers(barber_id) ON DELETE CASCADE,
+    INDEX idx_barber_day (barber_id, day_of_week)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Barber time off/breaks
+CREATE TABLE barber_time_off (
+    time_off_id INT AUTO_INCREMENT PRIMARY KEY,
+    barber_id INT NOT NULL,
+    off_date DATE NOT NULL,
+    start_time TIME,
+    end_time TIME,
+    reason VARCHAR(255),
+    is_full_day BOOLEAN DEFAULT FALSE,
+    FOREIGN KEY (barber_id) REFERENCES barbers(barber_id) ON DELETE CASCADE,
+    INDEX idx_barber_date (barber_id, off_date)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Admin users
+CREATE TABLE admin_users (
+    user_id INT AUTO_INCREMENT PRIMARY KEY,
+    username VARCHAR(50) UNIQUE NOT NULL,
+    password_hash VARCHAR(255) NOT NULL,
+    full_name VARCHAR(100) NOT NULL,
+    email VARCHAR(255) UNIQUE NOT NULL,
+    role ENUM('admin', 'staff', 'barber') DEFAULT 'staff',
+    barber_id INT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    last_login TIMESTAMP NULL,
+    status ENUM('active', 'inactive') DEFAULT 'active',
+    FOREIGN KEY (barber_id) REFERENCES barbers(barber_id) ON DELETE SET NULL,
+    INDEX idx_username (username)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Reviews/Ratings
+CREATE TABLE reviews (
+    review_id INT AUTO_INCREMENT PRIMARY KEY,
+    appointment_id INT NOT NULL,
+    customer_id INT NOT NULL,
+    barber_id INT NOT NULL,
+    rating INT NOT NULL CHECK (rating BETWEEN 1 AND 5),
+    comment TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (appointment_id) REFERENCES appointments(appointment_id) ON DELETE CASCADE,
+    FOREIGN KEY (customer_id) REFERENCES customers(customer_id) ON DELETE CASCADE,
+    FOREIGN KEY (barber_id) REFERENCES barbers(barber_id) ON DELETE CASCADE,
+    INDEX idx_barber (barber_id),
+    INDEX idx_rating (rating)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
